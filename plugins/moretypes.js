@@ -3,63 +3,60 @@ var namespace = "more_types";
 module.exports = moreTypes;
 
 function moreTypes() {
-    var extras = this.createStore(this.storage, null, this._namespacePrefix+namespace);
-    var cvars = {};
-    var types = {
-        Map: {
-            encode: function (val) { return Array.from(val.entries()); },
-            decode: function (val) { return new Map(val); }
-        }
-    };
-    
-    return {
-        set: moretypes_set,
-        get: moretypes_get,
-        set_types: moretypes_set_types,
-        set_vars: moretypes_set_cvars
-    };
-    
-    function moretypes_set(super_fn, key, val) {
-        var type = val.constructor.name;
-        
-        if (key in cvars && 'encode' in cvars[key]) {
-            val = cvars[key].encode(val)
-        }
-        else if (type in types && 'encode' in types[type]) {
-            val = types[type].encode(val);
-            extras.set(key, type);
-        }
-        
-        return super_fn(key, val);
+  var types = {
+      Map: {
+        replacer : function(val) { return Array.from(val); },
+        reviver  : function(val) { return new Map(val); }
+      },
+      Set: {
+        replacer : function(val) { return Array.from(val); },
+        reviver  : function(val) { return new Set(val); }
+      }
+  };
+
+  return {
+    add_types: more_types_add_types,
+    _serialize: more_types_serialize,
+    _deserialize: more_types_deserialize
+  };
+
+  function more_types_add_types(super_fn, userTypes) {
+    for (var type in userTypes) {
+      types[type] = userTypes[type];
     }
-    
-    function moretypes_get(super_fn, key) {
-        var val = super_fn(key);
-        var type = extras.get(key);
-        
-        if (key in cvars && 'decode' in cvars[key]) {
-            val = cvars[key].decode(val)
-        }
-        else if (type !== undefined && type in types && 'decode' in types[type]) {
-            val = types[type].decode(val);
-        }
-        
-        return val;
+  }
+  
+  function _replacer(key, value) {
+    var type = value.constructor.name;
+    if (type in types && 'replacer' in types[type]) {
+      value = {[namespace]: type, data: types[type].replacer(value)};
     }
-    
-    function moretypes_set_types(super_fn, user_types) {
-        for (var key in user_types) {
-            types[key] = user_types[key];
-        }
-        
-        return;
+    return value;
+  }
+  
+  function more_types_serialize(super_fn, obj) {
+    return JSON.stringify(obj, _replacer);
+  }
+  
+  function _reviver(key, value) {
+    var type = value[namespace];
+    if (type !== undefined && type in types && 'reviver' in types[type]) {
+      value = types[type].reviver(value['data']);
     }
-    
-    function moretypes_set_cvars(super_fn, user_cvars) {
-        for (var key in user_cvars) {
-            cvars[key] = user_cvars[key];
-        }
-        
-        return;
-    }
+    return value;
+  }
+  
+	function more_types_deserialize(super_fn, strVal, defaultVal) {
+		if (!strVal) { return defaultVal }
+		// It is possible that a raw string value has been previously stored
+		// in a storage without using store.js, meaning it will be a raw
+		// string value instead of a JSON serialized string. By defaulting
+		// to the raw string value in case of a JSON parse error, we allow
+		// for past stored values to be forwards-compatible with store.js
+		var val = '';
+		try { val = JSON.parse(strVal, _reviver) }
+		catch(e) { val = strVal }
+
+		return (val !== undefined ? val : defaultVal);
+	}
 }
