@@ -64,7 +64,7 @@ store.add_types({
 })
 
 var person = new Person({first: "Tri", last: "Hoang"})
-store.set('tri', person)'
+store.set('tri', person)
 
 console.log(person);
 console.log(store.get('tri'));
