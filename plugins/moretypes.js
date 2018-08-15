@@ -4,22 +4,22 @@ module.exports = moreTypes;
 
 function moreTypes() {
 	var types = {
-		Map: {
-			replacer : function(val) { return Array.from(val); },
-			reviver  : function(val) { return new Map(val); }
-		},
-		Set: {
-			replacer : function(val) { return Array.from(val); },
-			reviver  : function(val) { return new Set(val); }
-		}
+			Map: {
+				replacer : function(val) { return Array.from(val); },
+				reviver	: function(val) { return new Map(val); }
+			},
+			Set: {
+				replacer : function(val) { return Array.from(val); },
+				reviver	: function(val) { return new Set(val); }
+			}
 	};
-	
+
 	return {
 		add_types: more_types_add_types,
 		_serialize: more_types_serialize,
 		_deserialize: more_types_deserialize
 	};
-	
+
 	function more_types_add_types(super_fn, userTypes) {
 		for (var type in userTypes) {
 			types[type] = userTypes[type];
@@ -28,8 +28,11 @@ function moreTypes() {
 	
 	function _replacer(key, value) {
 		var type = value.constructor.name;
-		if (type in types && 'replacer' in types[type]) {
-			value = {[namespace]: type, data: types[type].replacer(value)};
+		if (type in types) {
+			if ('replacer' in types[type])
+				value = {[namespace]: type, data: types[type].replacer(value)};
+			else
+				value = {[namespace]: type, data: JSON.stringify(value)};
 		}
 		return value;
 	}
@@ -40,12 +43,18 @@ function moreTypes() {
 	
 	function _reviver(key, value) {
 		var type = value[namespace];
-		if (type !== undefined && type in types && 'reviver' in types[type]) {
-			value = types[type].reviver(value['data']);
+		if (type !== undefined && type in types) {
+			if (!('replacer' in types[type]))
+				value.data = JSON.parse(value['data']);
+				
+			if ('reviver' in types[type])
+				value = types[type].reviver(value['data']);
+			else
+				value = value['data'];
 		}
 		return value;
 	}
-  
+	
 	function more_types_deserialize(super_fn, strVal, defaultVal) {
 		if (!strVal) { return defaultVal }
 		// It is possible that a raw string value has been previously stored
